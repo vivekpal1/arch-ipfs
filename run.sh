@@ -26,23 +26,42 @@ else
     echo "IPFS is already initialized."
 fi
 
+## KEYS
+PINATA_API_KEY="your_pinata_api_key"
+PINATA_SECRET_API_KEY="your_pinata_secret_api_key"
+
 # Define paths and URLs
 MIRROR_URL="rsync://geo.mirror.pkgbuild.com/packages"
-LOCAL_MIRROR_DIR="/path/to/arch-ipfs"
-LOG_FILE="/path/to/log_file.log"
+LOCAL_MIRROR_DIR="path/to/arch-ipfs"
+LOG_FILE="./arch-ipfs.log"
 
-# Sync Function
+# Sync
 sync_repo() {
     local repo_name=$1
     echo "Syncing $repo_name..." | tee -a "$LOG_FILE"
     rsync -av --delete-after "$MIRROR_URL/$repo_name/os/x86_64/" "$LOCAL_MIRROR_DIR/$repo_name/" | tee -a "$LOG_FILE"
 }
 
-# Add to IPFS Function
+#Pin to Pinata
+pin_to_pinata() {
+    local cid=$1
+    local name=$2
+    echo "Pinning $name to Pinata..."
+    curl -X POST "https://api.pinata.cloud/pinning/pinByHash" \
+         -H "pinata_api_key: $PINATA_API_KEY" \
+         -H "pinata_secret_api_key: $PINATA_SECRET_API_KEY" \
+         -H "Content-Type: application/json" \
+         -d "{\"hashToPin\":\"$cid\",\"pinataMetadata\":{\"name\":\"$name\"}}" \
+         | tee -a "$LOG_FILE"
+}
+
+# Add to IPFS
 add_to_ipfs() {
     local repo_name=$1
     echo "Adding $repo_name to IPFS..." | tee -a "$LOG_FILE"
-    ipfs add -r "$LOCAL_MIRROR_DIR/$repo_name/" | tee -a "$LOG_FILE"
+    local cid=$(ipfs add -r -Q "$LOCAL_MIRROR_DIR/$repo_name/")
+    echo "CID: $cid"
+    pin_to_pinata "$cid" "$repo_name"
 }
 
 # Main Execution
